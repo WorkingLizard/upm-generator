@@ -19,12 +19,10 @@ namespace PackageCreator.Editor
         private string _unityVersion = "2021.3";
         private string _unityRelease = "0f1";
 
-        // ─── Author ─────────────────────────────────────────────────────
         private string _authorName = "";
         private string _authorEmail = "";
         private string _authorUrl = "";
 
-        // ─── Optional ───────────────────────────────────────────────────
         private string _license = "MIT";
         private string _documentationUrl = "";
         private string _changelogUrl = "";
@@ -32,17 +30,14 @@ namespace PackageCreator.Editor
         private string _keywords = "";          // comma-separated
         private string _dependencies = "";          // "com.unity.something:1.0.0" per line
 
-        // ─── Paths ──────────────────────────────────────────────────────
         private string _sourceFolder = "Assets/";
         private string _outputFolder = "";
         private DefaultAsset _sourceFolderAsset;
 
-        // ─── UI State ───────────────────────────────────────────────────
         private Vector2 _scroll;
         private bool _foldoutAuthor = true;
         private bool _foldoutOptional = false;
 
-        // ─────────────────────────────────────────────────────────────────
         [MenuItem("Tools/Package Creator")]
         public static void Open()
         {
@@ -50,9 +45,6 @@ namespace PackageCreator.Editor
             win.minSize = new Vector2(460, 520);
         }
 
-        // ================================================================
-        //  GUI
-        // ================================================================
         private void OnGUI()
         {
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
@@ -60,7 +52,6 @@ namespace PackageCreator.Editor
             EditorGUILayout.LabelField("Unity Package Creator", EditorStyles.boldLabel);
             EditorGUILayout.Space(6);
 
-            // ── Source folder (drag-drop or picker) ─────────────────────
             EditorGUILayout.LabelField("Source Folder", EditorStyles.miniBoldLabel);
             EditorGUI.BeginChangeCheck();
             _sourceFolderAsset = (DefaultAsset)EditorGUILayout.ObjectField(
@@ -71,7 +62,6 @@ namespace PackageCreator.Editor
             _sourceFolder = EditorGUILayout.TextField("Path", _sourceFolder);
             EditorGUILayout.Space(8);
 
-            // ── Output folder ───────────────────────────────────────────
             EditorGUILayout.LabelField("Output Folder", EditorStyles.miniBoldLabel);
             EditorGUILayout.BeginHorizontal();
             _outputFolder = EditorGUILayout.TextField(_outputFolder);
@@ -83,7 +73,6 @@ namespace PackageCreator.Editor
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.Space(8);
 
-            // ── Package identity ────────────────────────────────────────
             EditorGUILayout.LabelField("Package Details", EditorStyles.miniBoldLabel);
             _packageName = EditorGUILayout.TextField("Name (com.x.y)", _packageName);
             _displayName = EditorGUILayout.TextField("Display Name", _displayName);
@@ -94,7 +83,6 @@ namespace PackageCreator.Editor
             _license = EditorGUILayout.TextField("License", _license);
             EditorGUILayout.Space(4);
 
-            // ── Author ──────────────────────────────────────────────────
             _foldoutAuthor = EditorGUILayout.Foldout(_foldoutAuthor, "Author", true);
             if (_foldoutAuthor)
             {
@@ -105,7 +93,6 @@ namespace PackageCreator.Editor
                 EditorGUI.indentLevel--;
             }
 
-            // ── Optional fields ─────────────────────────────────────────
             _foldoutOptional = EditorGUILayout.Foldout(_foldoutOptional, "Optional", true);
             if (_foldoutOptional)
             {
@@ -121,7 +108,6 @@ namespace PackageCreator.Editor
 
             EditorGUILayout.Space(12);
 
-            // ── Create button ───────────────────────────────────────────
             GUI.enabled = IsValid();
             if (GUILayout.Button("Create Package", GUILayout.Height(32)))
                 CreatePackage();
@@ -133,9 +119,6 @@ namespace PackageCreator.Editor
             EditorGUILayout.EndScrollView();
         }
 
-        // ================================================================
-        //  Validation
-        // ================================================================
         private bool IsValid()
         {
             if (string.IsNullOrWhiteSpace(_packageName)) return false;
@@ -163,9 +146,6 @@ namespace PackageCreator.Editor
             return Path.GetFullPath(Path.Combine(Application.dataPath, "..", _sourceFolder));
         }
 
-        // ================================================================
-        //  Package creation
-        // ================================================================
         private void CreatePackage()
         {
             try
@@ -186,13 +166,10 @@ namespace PackageCreator.Editor
                 Directory.CreateDirectory(runtimeDir);
                 Directory.CreateDirectory(editorDir);
 
-                // ── Collect every file (skip .meta originals) ───────────
                 var allFiles = Directory.GetFiles(srcRoot, "*", SearchOption.AllDirectories)
                     .Where(f => !f.EndsWith(".meta", StringComparison.OrdinalIgnoreCase))
                     .ToList();
 
-                // Check once whether the source folder itself sits under an
-                // "Editor" ancestor (between it and Assets).
                 bool sourceUnderEditor = IsSourceUnderEditorAncestor(srcRoot);
 
                 int processed = 0;
@@ -206,9 +183,6 @@ namespace PackageCreator.Editor
                     bool relHasEditor = IsEditorPath(relPath);
                     bool isEditor = sourceUnderEditor || relHasEditor;
 
-                    // Only strip the "Editor" segment from the relative path if
-                    // it actually has one. When the source folder's *ancestor* is
-                    // Editor, the relative path has nothing to strip.
                     string cleanRel = (isEditor && relHasEditor) ? StripEditorSegment(relPath) : relPath;
 
                     string destDir = isEditor ? editorDir : runtimeDir;
@@ -217,37 +191,28 @@ namespace PackageCreator.Editor
                     Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
                     File.Copy(absFile, destPath, true);
 
-                    // Generate a .meta for the file
                     WriteMeta(destPath, isFolder: false);
                 }
 
-                // ── Generate .meta for every created directory ──────────
                 foreach (string dir in Directory.GetDirectories(pkgRoot, "*", SearchOption.AllDirectories))
                     WriteMeta(dir, isFolder: true);
 
-                // Also write metas for the top-level Runtime / Editor dirs
-                // (already covered above, but ensure root package folder too)
                 WriteMeta(runtimeDir, isFolder: true);
                 WriteMeta(editorDir, isFolder: true);
 
-                // ── Root assembly name helper ───────────────────────────
                 string asmBase = _packageName.Replace("-", ".").Replace(" ", "");
 
-                // ── Assembly definitions ────────────────────────────────
                 WriteAsmdef(runtimeDir, $"{asmBase}.Runtime", isEditor: false);
                 WriteAsmdef(editorDir, $"{asmBase}.Editor", isEditor: true, runtimeRef: $"{asmBase}.Runtime");
 
-                // ── package.json ────────────────────────────────────────
                 WritePackageJson(pkgRoot);
 
-                // ── Meta for package.json itself ────────────────────────
                 WriteMeta(Path.Combine(pkgRoot, "package.json"), isFolder: false);
 
                 EditorUtility.ClearProgressBar();
                 EditorUtility.DisplayDialog("Done!",
                     $"Package created at:\n{pkgRoot}", "OK");
 
-                // Reveal in explorer / finder
                 EditorUtility.RevealInFinder(pkgRoot);
             }
             catch (Exception ex)
@@ -257,10 +222,6 @@ namespace PackageCreator.Editor
                 EditorUtility.DisplayDialog("Error", ex.Message, "OK");
             }
         }
-
-        // ================================================================
-        //  File writers
-        // ================================================================
 
         /// <summary>Write a minimal .meta file (GUID derived from path for determinism).</summary>
         private static void WriteMeta(string targetPath, bool isFolder)
@@ -372,14 +333,12 @@ namespace PackageCreator.Editor
         {
             string path = Path.Combine(pkgRoot, "package.json");
 
-            // Build keywords array
             var kwList = _keywords
                 .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(k => k.Trim())
                 .Where(k => k.Length > 0)
                 .ToList();
 
-            // Build dependencies dict
             var depPairs = _dependencies
                 .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(l => l.Trim())
@@ -408,11 +367,9 @@ namespace PackageCreator.Editor
             if (!string.IsNullOrWhiteSpace(_licensesUrl))
                 sb.AppendLine($"    \"licensesUrl\": \"{Escape(_licensesUrl)}\",");
 
-            // License
             if (!string.IsNullOrWhiteSpace(_license))
                 sb.AppendLine($"    \"license\": \"{Escape(_license)}\",");
 
-            // Keywords
             if (kwList.Count > 0)
             {
                 sb.AppendLine("    \"keywords\": [");
@@ -428,7 +385,6 @@ namespace PackageCreator.Editor
                 sb.AppendLine("    \"keywords\": [],");
             }
 
-            // Author
             bool hasAuthor = !string.IsNullOrWhiteSpace(_authorName);
             if (hasAuthor)
             {
@@ -436,7 +392,6 @@ namespace PackageCreator.Editor
                 sb.AppendLine($"        \"name\": \"{Escape(_authorName)}\"");
                 if (!string.IsNullOrWhiteSpace(_authorEmail))
                 {
-                    // Replace previous line's newline: add comma
                     sb.Remove(sb.Length - Environment.NewLine.Length, Environment.NewLine.Length);
                     sb.AppendLine(",");
                     sb.AppendLine($"        \"email\": \"{Escape(_authorEmail)}\"");
@@ -450,7 +405,6 @@ namespace PackageCreator.Editor
                 sb.AppendLine("    },");
             }
 
-            // Dependencies
             if (depPairs.Count > 0)
             {
                 sb.AppendLine("    \"dependencies\": {");
@@ -471,10 +425,6 @@ namespace PackageCreator.Editor
             File.WriteAllText(path, sb.ToString());
         }
 
-        // ================================================================
-        //  Helpers
-        // ================================================================
-
         /// <summary>True if any segment of the relative path is named "Editor" (case-insensitive).</summary>
         private static bool IsEditorPath(string relativePath)
         {
@@ -494,11 +444,9 @@ namespace PackageCreator.Editor
         {
             string assetsDir = Path.GetFullPath(Application.dataPath); // …/Assets
 
-            // Get the full, normalized source path
             string fullSource = Path.GetFullPath(sourceFolder)
                 .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-            // Walk upwards from the source's parent until we reach (or pass) Assets
             string current = Directory.GetParent(fullSource)?.FullName;
             while (!string.IsNullOrEmpty(current) && current.Length >= assetsDir.Length)
             {
@@ -535,7 +483,6 @@ namespace PackageCreator.Editor
             if (full.StartsWith(root, StringComparison.OrdinalIgnoreCase))
                 return full.Substring(root.Length);
 
-            // Fallback for .NET versions without Path.GetRelativePath
             Uri rootUri = new Uri(root);
             Uri fullUri = new Uri(full);
             return Uri.UnescapeDataString(rootUri.MakeRelativeUri(fullUri).ToString())
