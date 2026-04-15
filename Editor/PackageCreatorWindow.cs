@@ -11,60 +11,61 @@ namespace PackageCreator.Editor
 {
     public class PackageCreatorWindow : EditorWindow
     {
-        // ─── Mode ───────────────────────────────────────────────────────
+        // ─── Mode ────────────────────────────────────────────────────────────────
         private enum PackageMode { CreateNew, UpdateExisting }
         private PackageMode _mode = PackageMode.CreateNew;
 
-        // ─── Package Identity ───────────────────────────────────────────
-        private string _packageName = "com.company.mypackage";
-        private string _displayName = "My Package";
-        private string _version = "1.0.0";
-        private string _description = "A custom Unity package.";
-        private string _unityVersion = "2021.3";
-        private string _unityRelease = "0f1";
+        // ─── Package Identity ─────────────────────────────────────────────────
+        private string _packageName    = "com.company.mypackage";
+        private string _displayName    = "My Package";
+        private string _version        = "1.0.0";
+        private string _description    = "A custom Unity package.";
+        private string _unityVersion   = "2021.3";
+        private string _unityRelease   = "0f1";
 
-        private string _authorName = "";
+        private string _authorName  = "";
         private string _authorEmail = "";
-        private string _authorUrl = "";
+        private string _authorUrl   = "";
 
-        private string _license = "MIT";
+        private string _license          = "MIT";
         private string _documentationUrl = "";
-        private string _changelogUrl = "";
-        private string _licensesUrl = "";
-        private string _keywords = "";
-        private string _dependencies = "";
+        private string _changelogUrl     = "";
+        private string _licensesUrl      = "";
+        private string _keywords         = "";
+        private string _dependencies     = "";
 
-        private string _sourceFolder = "Assets/";
-        private string _outputFolder = "";
+        private string       _sourceFolder      = "Assets/";
+        private string       _outputFolder      = "";
         private DefaultAsset _sourceFolderAsset;
 
-        // ─── Import Settings ────────────────────────────────────────────
+        // ─── Import Settings ──────────────────────────────────────────────────
         private bool _createSubfolder = true;
 
-        // ─── Update Mode Options ────────────────────────────────────────
+        // ─── Update Mode ──────────────────────────────────────────────────────
         private bool _overrideMetaFiles = false;
 
+        // ─── UI State ─────────────────────────────────────────────────────────
         private Vector2 _scroll;
-        private bool _foldoutAuthor = true;
-        private bool _foldoutOptional = false;
+        private bool    _foldoutAuthor              = true;
+        private bool    _foldoutOptional            = false;
+        private bool    _foldoutAssemblyConnections = true;
 
-        // ─── Assembly Connections ────────────────────────────────────────
-        private bool _foldoutAssemblyConnections = true;
-        private List<AsmdefEntry> _discoveredAsmdefs = new List<AsmdefEntry>();
-        private string _lastScannedSourceFolder = "";
+        // ─── Assembly Connections ─────────────────────────────────────────────
+        private List<AsmdefEntry> _discoveredAsmdefs    = new List<AsmdefEntry>();
+        private string            _lastScannedSourceFolder = "";
 
         [Serializable]
         private class AsmdefEntry
         {
             public string name;
             public string relativePath;
-            public bool assignToRuntime;
-            public bool assignToEditor;
+            public bool   assignToRuntime;
+            public bool   assignToEditor;
         }
 
-        // ─── Cache ──────────────────────────────────────────────────────
+        // ─── Cache ────────────────────────────────────────────────────────────
         private const string CacheFolderName = "UPMGeneratorCache";
-        private const string CacheFileName = "settings.json";
+        private const string CacheFileName   = "settings.json";
 
         private static string CacheFolderPath =>
             Path.Combine(GetEditorDefaultSettingsPath(), CacheFolderName);
@@ -92,7 +93,7 @@ namespace PackageCreator.Editor
             public string dependencies;
             public string sourceFolder;
             public string outputFolder;
-            public bool createSubfolder;
+            public bool   createSubfolder;
             public List<CachedAsmdefEntry> asmdefEntries;
         }
 
@@ -101,11 +102,11 @@ namespace PackageCreator.Editor
         {
             public string name;
             public string relativePath;
-            public bool assignToRuntime;
-            public bool assignToEditor;
+            public bool   assignToRuntime;
+            public bool   assignToEditor;
         }
 
-        // ─── Window ─────────────────────────────────────────────────────
+        // ─── Window Entry Point ───────────────────────────────────────────────
 
         [MenuItem("Tools/Package Creator")]
         public static void Open()
@@ -114,6 +115,8 @@ namespace PackageCreator.Editor
             win.minSize = new Vector2(460, 580);
         }
 
+        // ─── GUI ──────────────────────────────────────────────────────────────
+
         private void OnGUI()
         {
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
@@ -121,24 +124,58 @@ namespace PackageCreator.Editor
             EditorGUILayout.LabelField("Unity Package Creator", EditorStyles.boldLabel);
             EditorGUILayout.Space(4);
 
-            // ─── Mode Toggle ────────────────────────────────────────
+            DrawModeToggle();
+            EditorGUILayout.Space(6);
+
+            DrawCacheButtons();
+            EditorGUILayout.Space(6);
+
+            DrawSourceFolderSection();
+            EditorGUILayout.Space(8);
+
+            DrawOutputFolderSection();
+            DrawImportSettingsSection();
+
+            if (_mode == PackageMode.UpdateExisting)
+                DrawUpdateModeExtras();
+
+            EditorGUILayout.Space(8);
+
+            DrawPackageDetailsSection();
+            DrawAuthorSection();
+            DrawOptionalSection();
+            DrawAssemblyConnectionsSection();
+
+            EditorGUILayout.Space(12);
+            DrawActionButton();
+
+            EditorGUILayout.EndScrollView();
+        }
+
+        // ─── GUI Sections ─────────────────────────────────────────────────────
+
+        private void DrawModeToggle()
+        {
             EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Toggle(_mode == PackageMode.CreateNew, "Create New", EditorStyles.miniButtonLeft))
+            if (GUILayout.Toggle(_mode == PackageMode.CreateNew,    "Create New",      EditorStyles.miniButtonLeft))
                 _mode = PackageMode.CreateNew;
             if (GUILayout.Toggle(_mode == PackageMode.UpdateExisting, "Update Existing", EditorStyles.miniButtonRight))
                 _mode = PackageMode.UpdateExisting;
             EditorGUILayout.EndHorizontal();
-            EditorGUILayout.Space(6);
+        }
 
-            // ─── Cache buttons ──────────────────────────────────────
+        private void DrawCacheButtons()
+        {
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("Load Cached Settings", GUILayout.Height(24)))
                 LoadCachedSettings();
             EditorGUILayout.EndHorizontal();
-            EditorGUILayout.Space(6);
+        }
 
-            // ─── Source Folder ───────────────────────────────────────
+        private void DrawSourceFolderSection()
+        {
             EditorGUILayout.LabelField("Source Folder", EditorStyles.miniBoldLabel);
+
             EditorGUI.BeginChangeCheck();
             _sourceFolderAsset = (DefaultAsset)EditorGUILayout.ObjectField(
                 "Folder in Assets", _sourceFolderAsset, typeof(DefaultAsset), false);
@@ -152,14 +189,15 @@ namespace PackageCreator.Editor
             _sourceFolder = EditorGUILayout.TextField("Path", _sourceFolder);
             if (EditorGUI.EndChangeCheck())
                 RefreshAsmdefList();
+        }
 
-            EditorGUILayout.Space(8);
-
-            // ─── Output Folder ──────────────────────────────────────
-            string outputLabel = _mode == PackageMode.CreateNew
+        private void DrawOutputFolderSection()
+        {
+            string label = _mode == PackageMode.CreateNew
                 ? "Output Folder"
                 : "Existing Package Folder (contains package.json)";
-            EditorGUILayout.LabelField(outputLabel, EditorStyles.miniBoldLabel);
+
+            EditorGUILayout.LabelField(label, EditorStyles.miniBoldLabel);
             EditorGUILayout.BeginHorizontal();
             _outputFolder = EditorGUILayout.TextField(_outputFolder);
             if (GUILayout.Button("Browse…", GUILayout.Width(80)))
@@ -168,218 +206,86 @@ namespace PackageCreator.Editor
                 if (!string.IsNullOrEmpty(picked))
                 {
                     _outputFolder = picked;
-
-                    // In Update mode, auto-load package.json if found
                     if (_mode == PackageMode.UpdateExisting)
                         TryLoadPackageJsonFromFolder(_outputFolder);
                 }
             }
             EditorGUILayout.EndHorizontal();
+        }
 
-            // ─── Import Settings ────────────────────────────────────
+        private void DrawImportSettingsSection()
+        {
             EditorGUILayout.Space(4);
             EditorGUILayout.LabelField("Import Settings", EditorStyles.miniBoldLabel);
-
             _createSubfolder = EditorGUILayout.Toggle("Create Package Subfolder", _createSubfolder);
 
-            // Preview the resolved package root
             string previewRoot = ResolvePackageRoot();
             EditorGUI.BeginDisabledGroup(true);
             EditorGUILayout.TextField("Package Root", string.IsNullOrWhiteSpace(previewRoot) ? "—" : previewRoot);
             EditorGUI.EndDisabledGroup();
+        }
 
-            // ─── Load from package.json button (Update mode) ────────
-            if (_mode == PackageMode.UpdateExisting)
+        private void DrawUpdateModeExtras()
+        {
+            EditorGUILayout.Space(2);
+            if (GUILayout.Button("Load from package.json", GUILayout.Height(22)))
             {
-                EditorGUILayout.Space(2);
-                if (GUILayout.Button("Load from package.json", GUILayout.Height(22)))
-                {
-                    if (!string.IsNullOrWhiteSpace(_outputFolder))
-                        TryLoadPackageJsonFromFolder(_outputFolder);
-                    else
-                        EditorUtility.DisplayDialog("No Folder", "Set the existing package folder first.", "OK");
-                }
-
-                _overrideMetaFiles = EditorGUILayout.Toggle("Override Existing .meta Files", _overrideMetaFiles);
-            }
-
-            EditorGUILayout.Space(8);
-
-            // ─── Package Details ────────────────────────────────────
-            EditorGUILayout.LabelField("Package Details", EditorStyles.miniBoldLabel);
-            _packageName = EditorGUILayout.TextField("Name (com.x.y)", _packageName);
-            _displayName = EditorGUILayout.TextField("Display Name", _displayName);
-            _version = EditorGUILayout.TextField("Version", _version);
-            _description = EditorGUILayout.TextField("Description", _description);
-            _unityVersion = EditorGUILayout.TextField("Min Unity Ver.", _unityVersion);
-            _unityRelease = EditorGUILayout.TextField("Unity Release", _unityRelease);
-            _license = EditorGUILayout.TextField("License", _license);
-            EditorGUILayout.Space(4);
-
-            // ─── Author ─────────────────────────────────────────────
-            _foldoutAuthor = EditorGUILayout.Foldout(_foldoutAuthor, "Author", true);
-            if (_foldoutAuthor)
-            {
-                EditorGUI.indentLevel++;
-                _authorName = EditorGUILayout.TextField("Name", _authorName);
-                _authorEmail = EditorGUILayout.TextField("Email", _authorEmail);
-                _authorUrl = EditorGUILayout.TextField("URL", _authorUrl);
-                EditorGUI.indentLevel--;
-            }
-
-            // ─── Optional ───────────────────────────────────────────
-            _foldoutOptional = EditorGUILayout.Foldout(_foldoutOptional, "Optional", true);
-            if (_foldoutOptional)
-            {
-                EditorGUI.indentLevel++;
-                _documentationUrl = EditorGUILayout.TextField("Docs URL", _documentationUrl);
-                _changelogUrl = EditorGUILayout.TextField("Changelog URL", _changelogUrl);
-                _licensesUrl = EditorGUILayout.TextField("Licenses URL", _licensesUrl);
-                _keywords = EditorGUILayout.TextField("Keywords (csv)", _keywords);
-                EditorGUILayout.LabelField("Dependencies  (one per line:  com.unity.pkg:1.0.0)");
-                _dependencies = EditorGUILayout.TextArea(_dependencies, GUILayout.Height(48));
-                EditorGUI.indentLevel--;
-            }
-
-            // ─── Assembly Connections ────────────────────────────────
-            _foldoutAssemblyConnections = EditorGUILayout.Foldout(_foldoutAssemblyConnections, "Assembly Connections", true);
-            if (_foldoutAssemblyConnections)
-            {
-                EditorGUI.indentLevel++;
-                DrawAssemblyConnectionsUI();
-                EditorGUI.indentLevel--;
-            }
-
-            EditorGUILayout.Space(12);
-
-            // ─── Create / Update Button ─────────────────────────────
-            GUI.enabled = IsValid();
-            string buttonLabel = _mode == PackageMode.CreateNew ? "Create Package" : "Update Package";
-            if (GUILayout.Button(buttonLabel, GUILayout.Height(32)))
-            {
-                if (_mode == PackageMode.CreateNew)
-                    CreatePackage();
+                if (!string.IsNullOrWhiteSpace(_outputFolder))
+                    TryLoadPackageJsonFromFolder(_outputFolder);
                 else
-                    UpdatePackage();
+                    EditorUtility.DisplayDialog("No Folder", "Set the existing package folder first.", "OK");
             }
-            GUI.enabled = true;
-
-            if (!IsValid())
-                EditorGUILayout.HelpBox(GetValidationMessage(), MessageType.Warning);
-
-            EditorGUILayout.EndScrollView();
+            _overrideMetaFiles = EditorGUILayout.Toggle("Override Existing .meta Files", _overrideMetaFiles);
         }
 
-        // ─── Resolve package root based on subfolder toggle ─────────────
-
-        private string ResolvePackageRoot()
+        private void DrawPackageDetailsSection()
         {
-            if (string.IsNullOrWhiteSpace(_outputFolder))
-                return "";
-
-            return _createSubfolder
-                ? Path.Combine(_outputFolder, _packageName)
-                : _outputFolder;
+            EditorGUILayout.LabelField("Package Details", EditorStyles.miniBoldLabel);
+            _packageName  = EditorGUILayout.TextField("Name (com.x.y)", _packageName);
+            _displayName  = EditorGUILayout.TextField("Display Name",   _displayName);
+            _version      = EditorGUILayout.TextField("Version",        _version);
+            _description  = EditorGUILayout.TextField("Description",    _description);
+            _unityVersion = EditorGUILayout.TextField("Min Unity Ver.",  _unityVersion);
+            _unityRelease = EditorGUILayout.TextField("Unity Release",   _unityRelease);
+            _license      = EditorGUILayout.TextField("License",         _license);
+            EditorGUILayout.Space(4);
         }
 
-        // ─── Load package.json into fields ──────────────────────────────
-
-        private void TryLoadPackageJsonFromFolder(string folder)
+        private void DrawAuthorSection()
         {
-            string pkgJsonPath = Path.Combine(folder, "package.json");
-            if (!File.Exists(pkgJsonPath))
-            {
-                EditorUtility.DisplayDialog("Not Found",
-                    $"No package.json found in:\n{folder}", "OK");
-                return;
-            }
+            _foldoutAuthor = EditorGUILayout.Foldout(_foldoutAuthor, "Author", true);
+            if (!_foldoutAuthor) return;
 
-            try
-            {
-                string json = File.ReadAllText(pkgJsonPath);
-
-                _packageName = ExtractJsonStringField(json, "name") ?? _packageName;
-                _displayName = ExtractJsonStringField(json, "displayName") ?? _displayName;
-                _version = ExtractJsonStringField(json, "version") ?? _version;
-                _description = ExtractJsonStringField(json, "description") ?? _description;
-                _unityVersion = ExtractJsonStringField(json, "unity") ?? _unityVersion;
-                _unityRelease = ExtractJsonStringField(json, "unityRelease") ?? _unityRelease;
-                _license = ExtractJsonStringField(json, "license") ?? _license;
-                _documentationUrl = ExtractJsonStringField(json, "documentationUrl") ?? "";
-                _changelogUrl = ExtractJsonStringField(json, "changelogUrl") ?? "";
-                _licensesUrl = ExtractJsonStringField(json, "licensesUrl") ?? "";
-
-                // Author block
-                _authorName = ExtractNestedJsonStringField(json, "author", "name") ?? "";
-                _authorEmail = ExtractNestedJsonStringField(json, "author", "email") ?? "";
-                _authorUrl = ExtractNestedJsonStringField(json, "author", "url") ?? "";
-
-                // Keywords
-                _keywords = ExtractJsonArrayAsCSV(json, "keywords") ?? "";
-
-                // Dependencies
-                _dependencies = ExtractJsonObjectAsLines(json, "dependencies") ?? "";
-
-                Debug.Log($"[PackageCreator] Loaded package.json from {pkgJsonPath}");
-                Repaint();
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[PackageCreator] Failed to parse package.json: {ex.Message}");
-                EditorUtility.DisplayDialog("Error", $"Failed to parse package.json:\n{ex.Message}", "OK");
-            }
+            EditorGUI.indentLevel++;
+            _authorName  = EditorGUILayout.TextField("Name",  _authorName);
+            _authorEmail = EditorGUILayout.TextField("Email", _authorEmail);
+            _authorUrl   = EditorGUILayout.TextField("URL",   _authorUrl);
+            EditorGUI.indentLevel--;
         }
 
-        // ─── Assembly Connection Scanning & UI ──────────────────────────
-
-        private void RefreshAsmdefList()
+        private void DrawOptionalSection()
         {
-            string absSource = GetAbsoluteSourcePath();
-            if (!Directory.Exists(absSource))
-            {
-                _discoveredAsmdefs.Clear();
-                _lastScannedSourceFolder = "";
-                return;
-            }
+            _foldoutOptional = EditorGUILayout.Foldout(_foldoutOptional, "Optional", true);
+            if (!_foldoutOptional) return;
 
-            if (absSource == _lastScannedSourceFolder)
-                return;
+            EditorGUI.indentLevel++;
+            _documentationUrl = EditorGUILayout.TextField("Docs URL",      _documentationUrl);
+            _changelogUrl     = EditorGUILayout.TextField("Changelog URL",  _changelogUrl);
+            _licensesUrl      = EditorGUILayout.TextField("Licenses URL",   _licensesUrl);
+            _keywords         = EditorGUILayout.TextField("Keywords (csv)", _keywords);
+            EditorGUILayout.LabelField("Dependencies  (one per line:  com.unity.pkg:1.0.0)");
+            _dependencies = EditorGUILayout.TextArea(_dependencies, GUILayout.Height(48));
+            EditorGUI.indentLevel--;
+        }
 
-            _lastScannedSourceFolder = absSource;
+        private void DrawAssemblyConnectionsSection()
+        {
+            _foldoutAssemblyConnections = EditorGUILayout.Foldout(_foldoutAssemblyConnections, "Assembly Connections", true);
+            if (!_foldoutAssemblyConnections) return;
 
-            var previousSelections = _discoveredAsmdefs.ToDictionary(
-                a => a.name,
-                a => (runtime: a.assignToRuntime, editor: a.assignToEditor));
-
-            _discoveredAsmdefs.Clear();
-
-            string[] asmdefFiles = Directory.GetFiles(absSource, "*.asmdef", SearchOption.AllDirectories);
-
-            foreach (string asmdefPath in asmdefFiles)
-            {
-                string json = File.ReadAllText(asmdefPath);
-                string asmName = ExtractJsonStringField(json, "name");
-                if (string.IsNullOrEmpty(asmName))
-                    asmName = Path.GetFileNameWithoutExtension(asmdefPath);
-
-                string relPath = GetRelativePath(absSource, asmdefPath);
-
-                var entry = new AsmdefEntry
-                {
-                    name = asmName,
-                    relativePath = relPath,
-                    assignToRuntime = false,
-                    assignToEditor = false,
-                };
-
-                if (previousSelections.TryGetValue(asmName, out var prev))
-                {
-                    entry.assignToRuntime = prev.runtime;
-                    entry.assignToEditor = prev.editor;
-                }
-
-                _discoveredAsmdefs.Add(entry);
-            }
+            EditorGUI.indentLevel++;
+            DrawAssemblyConnectionsUI();
+            EditorGUI.indentLevel--;
         }
 
         private void DrawAssemblyConnectionsUI()
@@ -402,8 +308,8 @@ namespace PackageCreator.Editor
 
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Assembly Definition", EditorStyles.miniBoldLabel, GUILayout.MinWidth(160));
-            EditorGUILayout.LabelField("Runtime", EditorStyles.miniBoldLabel, GUILayout.Width(56));
-            EditorGUILayout.LabelField("Editor", EditorStyles.miniBoldLabel, GUILayout.Width(56));
+            EditorGUILayout.LabelField("Runtime",             EditorStyles.miniBoldLabel, GUILayout.Width(56));
+            EditorGUILayout.LabelField("Editor",              EditorStyles.miniBoldLabel, GUILayout.Width(56));
             EditorGUILayout.EndHorizontal();
 
             foreach (var entry in _discoveredAsmdefs)
@@ -411,7 +317,7 @@ namespace PackageCreator.Editor
                 EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField(entry.name, GUILayout.MinWidth(160));
                 entry.assignToRuntime = EditorGUILayout.Toggle(entry.assignToRuntime, GUILayout.Width(56));
-                entry.assignToEditor = EditorGUILayout.Toggle(entry.assignToEditor, GUILayout.Width(56));
+                entry.assignToEditor  = EditorGUILayout.Toggle(entry.assignToEditor,  GUILayout.Width(56));
                 EditorGUILayout.EndHorizontal();
             }
 
@@ -423,21 +329,137 @@ namespace PackageCreator.Editor
             }
         }
 
-        // ─── Validation ─────────────────────────────────────────────────
+        private void DrawActionButton()
+        {
+            GUI.enabled = IsValid();
+            string label = _mode == PackageMode.CreateNew ? "Create Package" : "Update Package";
+            if (GUILayout.Button(label, GUILayout.Height(32)))
+            {
+                if (_mode == PackageMode.CreateNew)
+                    CreatePackage();
+                else
+                    UpdatePackage();
+            }
+            GUI.enabled = true;
+
+            if (!IsValid())
+                EditorGUILayout.HelpBox(GetValidationMessage(), MessageType.Warning);
+        }
+
+        // ─── Package Root Resolution ──────────────────────────────────────────
+
+        private string ResolvePackageRoot()
+        {
+            if (string.IsNullOrWhiteSpace(_outputFolder)) return "";
+            return _createSubfolder
+                ? Path.Combine(_outputFolder, _packageName)
+                : _outputFolder;
+        }
+
+        // ─── Load package.json ────────────────────────────────────────────────
+
+        private void TryLoadPackageJsonFromFolder(string folder)
+        {
+            string pkgJsonPath = Path.Combine(folder, "package.json");
+            if (!File.Exists(pkgJsonPath))
+            {
+                EditorUtility.DisplayDialog("Not Found", $"No package.json found in:\n{folder}", "OK");
+                return;
+            }
+
+            try
+            {
+                string json = File.ReadAllText(pkgJsonPath);
+
+                _packageName      = ExtractJsonStringField(json, "name")             ?? _packageName;
+                _displayName      = ExtractJsonStringField(json, "displayName")      ?? _displayName;
+                _version          = ExtractJsonStringField(json, "version")          ?? _version;
+                _description      = ExtractJsonStringField(json, "description")      ?? _description;
+                _unityVersion     = ExtractJsonStringField(json, "unity")            ?? _unityVersion;
+                _unityRelease     = ExtractJsonStringField(json, "unityRelease")     ?? _unityRelease;
+                _license          = ExtractJsonStringField(json, "license")          ?? _license;
+                _documentationUrl = ExtractJsonStringField(json, "documentationUrl") ?? "";
+                _changelogUrl     = ExtractJsonStringField(json, "changelogUrl")     ?? "";
+                _licensesUrl      = ExtractJsonStringField(json, "licensesUrl")      ?? "";
+
+                _authorName  = ExtractNestedJsonStringField(json, "author", "name")  ?? "";
+                _authorEmail = ExtractNestedJsonStringField(json, "author", "email") ?? "";
+                _authorUrl   = ExtractNestedJsonStringField(json, "author", "url")   ?? "";
+
+                _keywords     = ExtractJsonArrayAsCSV(json, "keywords")         ?? "";
+                _dependencies = ExtractJsonObjectAsLines(json, "dependencies")  ?? "";
+
+                Debug.Log($"[PackageCreator] Loaded package.json from {pkgJsonPath}");
+                Repaint();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[PackageCreator] Failed to parse package.json: {ex.Message}");
+                EditorUtility.DisplayDialog("Error", $"Failed to parse package.json:\n{ex.Message}", "OK");
+            }
+        }
+
+        // ─── Assembly Scanning ────────────────────────────────────────────────
+
+        private void RefreshAsmdefList()
+        {
+            string absSource = GetAbsoluteSourcePath();
+            if (!Directory.Exists(absSource))
+            {
+                _discoveredAsmdefs.Clear();
+                _lastScannedSourceFolder = "";
+                return;
+            }
+
+            if (absSource == _lastScannedSourceFolder) return;
+            _lastScannedSourceFolder = absSource;
+
+            var previousSelections = _discoveredAsmdefs.ToDictionary(
+                a => a.name,
+                a => (runtime: a.assignToRuntime, editor: a.assignToEditor));
+
+            _discoveredAsmdefs.Clear();
+
+            foreach (string asmdefPath in Directory.GetFiles(absSource, "*.asmdef", SearchOption.AllDirectories))
+            {
+                // Skip anything inside a .git folder
+                if (IsUnderGitFolder(asmdefPath, absSource)) continue;
+
+                string json    = File.ReadAllText(asmdefPath);
+                string asmName = ExtractJsonStringField(json, "name")
+                                 ?? Path.GetFileNameWithoutExtension(asmdefPath);
+
+                var entry = new AsmdefEntry
+                {
+                    name             = asmName,
+                    relativePath     = GetRelativePath(absSource, asmdefPath),
+                    assignToRuntime  = false,
+                    assignToEditor   = false,
+                };
+
+                if (previousSelections.TryGetValue(asmName, out var prev))
+                {
+                    entry.assignToRuntime = prev.runtime;
+                    entry.assignToEditor  = prev.editor;
+                }
+
+                _discoveredAsmdefs.Add(entry);
+            }
+        }
+
+        // ─── Validation ───────────────────────────────────────────────────────
 
         private bool IsValid()
         {
-            if (string.IsNullOrWhiteSpace(_packageName)) return false;
-            if (string.IsNullOrWhiteSpace(_version)) return false;
-            if (string.IsNullOrWhiteSpace(_sourceFolder)) return false;
-            if (string.IsNullOrWhiteSpace(_outputFolder)) return false;
-            if (!Directory.Exists(GetAbsoluteSourcePath())) return false;
+            if (string.IsNullOrWhiteSpace(_packageName))                return false;
+            if (string.IsNullOrWhiteSpace(_version))                    return false;
+            if (string.IsNullOrWhiteSpace(_sourceFolder))               return false;
+            if (string.IsNullOrWhiteSpace(_outputFolder))               return false;
+            if (!Directory.Exists(GetAbsoluteSourcePath()))             return false;
 
             if (_mode == PackageMode.UpdateExisting)
             {
-                // In update mode the user points directly at the package root regardless of subfolder toggle
-                string pkgJson = Path.Combine(_outputFolder, "package.json");
-                if (!File.Exists(pkgJson)) return false;
+                if (!File.Exists(Path.Combine(_outputFolder, "package.json"))) return false;
             }
 
             return true;
@@ -445,18 +467,15 @@ namespace PackageCreator.Editor
 
         private string GetValidationMessage()
         {
-            if (string.IsNullOrWhiteSpace(_packageName)) return "Package name is required.";
-            if (string.IsNullOrWhiteSpace(_version)) return "Version is required.";
-            if (string.IsNullOrWhiteSpace(_sourceFolder)) return "Source folder is required.";
-            if (string.IsNullOrWhiteSpace(_outputFolder)) return "Output folder is required.";
+            if (string.IsNullOrWhiteSpace(_packageName))    return "Package name is required.";
+            if (string.IsNullOrWhiteSpace(_version))        return "Version is required.";
+            if (string.IsNullOrWhiteSpace(_sourceFolder))   return "Source folder is required.";
+            if (string.IsNullOrWhiteSpace(_outputFolder))   return "Output folder is required.";
             if (!Directory.Exists(GetAbsoluteSourcePath())) return "Source folder does not exist.";
 
-            if (_mode == PackageMode.UpdateExisting)
-            {
-                string pkgJson = Path.Combine(_outputFolder, "package.json");
-                if (!File.Exists(pkgJson))
-                    return "Output folder must contain an existing package.json for Update mode.";
-            }
+            if (_mode == PackageMode.UpdateExisting &&
+                !File.Exists(Path.Combine(_outputFolder, "package.json")))
+                return "Output folder must contain an existing package.json for Update mode.";
 
             return "";
         }
@@ -467,7 +486,7 @@ namespace PackageCreator.Editor
             return Path.GetFullPath(Path.Combine(Application.dataPath, "..", _sourceFolder));
         }
 
-        // ─── Package Creation (New) ─────────────────────────────────────
+        // ─── Create Package ───────────────────────────────────────────────────
 
         private void CreatePackage()
         {
@@ -485,18 +504,12 @@ namespace PackageCreator.Editor
                 }
 
                 string runtimeDir = Path.Combine(pkgRoot, "Runtime");
-                string editorDir = Path.Combine(pkgRoot, "Editor");
+                string editorDir  = Path.Combine(pkgRoot, "Editor");
                 Directory.CreateDirectory(runtimeDir);
                 Directory.CreateDirectory(editorDir);
 
                 CopySourceFiles(srcRoot, runtimeDir, editorDir, overrideMeta: true);
-
-                foreach (string dir in Directory.GetDirectories(pkgRoot, "*", SearchOption.AllDirectories))
-                    WriteMeta(dir, isFolder: true, overrideMeta: true);
-
-                WriteMeta(runtimeDir, isFolder: true, overrideMeta: true);
-                WriteMeta(editorDir, isFolder: true, overrideMeta: true);
-
+                WriteDirectoryMetas(pkgRoot, overrideMeta: true);
                 WriteAssemblyDefinitions(runtimeDir, editorDir);
                 WritePackageJson(pkgRoot);
                 WriteMeta(Path.Combine(pkgRoot, "package.json"), isFolder: false, overrideMeta: true);
@@ -504,9 +517,7 @@ namespace PackageCreator.Editor
                 SaveCachedSettings();
 
                 EditorUtility.ClearProgressBar();
-                EditorUtility.DisplayDialog("Done!",
-                    $"Package created at:\n{pkgRoot}", "OK");
-
+                EditorUtility.DisplayDialog("Done!", $"Package created at:\n{pkgRoot}", "OK");
                 EditorUtility.RevealInFinder(pkgRoot);
             }
             catch (Exception ex)
@@ -517,29 +528,22 @@ namespace PackageCreator.Editor
             }
         }
 
-        // ─── Package Update (Existing) ──────────────────────────────────
+        // ─── Update Package ───────────────────────────────────────────────────
 
         private void UpdatePackage()
         {
             try
             {
                 string srcRoot = GetAbsoluteSourcePath();
-                // Update mode always uses _outputFolder directly (user points at the package root)
-                string pkgRoot = _outputFolder;
+                string pkgRoot = _outputFolder; // Update mode always points directly at the package root
 
                 string runtimeDir = Path.Combine(pkgRoot, "Runtime");
-                string editorDir = Path.Combine(pkgRoot, "Editor");
+                string editorDir  = Path.Combine(pkgRoot, "Editor");
                 Directory.CreateDirectory(runtimeDir);
                 Directory.CreateDirectory(editorDir);
 
                 CopySourceFiles(srcRoot, runtimeDir, editorDir, overrideMeta: _overrideMetaFiles);
-
-                foreach (string dir in Directory.GetDirectories(pkgRoot, "*", SearchOption.AllDirectories))
-                    WriteMeta(dir, isFolder: true, overrideMeta: _overrideMetaFiles);
-
-                WriteMeta(runtimeDir, isFolder: true, overrideMeta: _overrideMetaFiles);
-                WriteMeta(editorDir, isFolder: true, overrideMeta: _overrideMetaFiles);
-
+                WriteDirectoryMetas(pkgRoot, overrideMeta: _overrideMetaFiles);
                 WriteAssemblyDefinitions(runtimeDir, editorDir);
                 WritePackageJson(pkgRoot);
                 WriteMeta(Path.Combine(pkgRoot, "package.json"), isFolder: false, overrideMeta: _overrideMetaFiles);
@@ -547,9 +551,7 @@ namespace PackageCreator.Editor
                 SaveCachedSettings();
 
                 EditorUtility.ClearProgressBar();
-                EditorUtility.DisplayDialog("Done!",
-                    $"Package updated at:\n{pkgRoot}", "OK");
-
+                EditorUtility.DisplayDialog("Done!", $"Package updated at:\n{pkgRoot}", "OK");
                 EditorUtility.RevealInFinder(pkgRoot);
             }
             catch (Exception ex)
@@ -560,12 +562,13 @@ namespace PackageCreator.Editor
             }
         }
 
-        // ─── Shared: Copy Source Files ──────────────────────────────────
+        // ─── Copy Source Files ────────────────────────────────────────────────
 
         private void CopySourceFiles(string srcRoot, string runtimeDir, string editorDir, bool overrideMeta)
         {
             var allFiles = Directory.GetFiles(srcRoot, "*", SearchOption.AllDirectories)
                 .Where(f => !f.EndsWith(".meta", StringComparison.OrdinalIgnoreCase))
+                .Where(f => !IsUnderGitFolder(f, srcRoot))
                 .ToList();
 
             bool sourceUnderEditor = IsSourceUnderEditorAncestor(srcRoot);
@@ -574,81 +577,90 @@ namespace PackageCreator.Editor
             foreach (string absFile in allFiles)
             {
                 EditorUtility.DisplayProgressBar("Processing files…",
-                    Path.GetFileName(absFile),
-                    (float)processed++ / allFiles.Count);
+                    Path.GetFileName(absFile), (float)processed++ / allFiles.Count);
 
-                string relPath = GetRelativePath(srcRoot, absFile);
-                bool relHasEditor = IsEditorPath(relPath);
-                bool isEditor = sourceUnderEditor || relHasEditor;
+                string relPath      = GetRelativePath(srcRoot, absFile);
+                bool   relHasEditor = IsEditorPath(relPath);
+                bool   isEditor     = sourceUnderEditor || relHasEditor;
 
                 string cleanRel = (isEditor && relHasEditor) ? StripEditorSegment(relPath) : relPath;
-
-                string destDir = isEditor ? editorDir : runtimeDir;
+                string destDir  = isEditor ? editorDir : runtimeDir;
                 string destPath = Path.Combine(destDir, cleanRel);
 
                 Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
-                File.Copy(absFile, destPath, true); // always overwrite the actual file
+                File.Copy(absFile, destPath, true);
 
                 WriteMeta(destPath, isFolder: false, overrideMeta: overrideMeta);
             }
         }
 
-        // ─── Shared: Write Assembly Definitions ─────────────────────────
+        // ─── Write Directory Metas ────────────────────────────────────────────
+
+        /// <summary>
+        /// Write .meta files for all subdirectories under pkgRoot, skipping .git folders.
+        /// </summary>
+        private static void WriteDirectoryMetas(string pkgRoot, bool overrideMeta)
+        {
+            foreach (string dir in Directory.GetDirectories(pkgRoot, "*", SearchOption.AllDirectories))
+            {
+                if (IsUnderGitFolder(dir, pkgRoot)) continue;
+                WriteMeta(dir, isFolder: true, overrideMeta: overrideMeta);
+            }
+
+            // Ensure the immediate Runtime and Editor folder metas exist too
+            string runtimeMeta = Path.Combine(pkgRoot, "Runtime");
+            string editorMeta  = Path.Combine(pkgRoot, "Editor");
+            if (Directory.Exists(runtimeMeta)) WriteMeta(runtimeMeta, isFolder: true, overrideMeta: overrideMeta);
+            if (Directory.Exists(editorMeta))  WriteMeta(editorMeta,  isFolder: true, overrideMeta: overrideMeta);
+        }
+
+        // ─── Write Assembly Definitions ───────────────────────────────────────
 
         private void WriteAssemblyDefinitions(string runtimeDir, string editorDir)
         {
             string asmBase = _packageName.Replace("-", ".").Replace(" ", "");
 
-            var runtimeRefs = _discoveredAsmdefs
-                .Where(a => a.assignToRuntime)
-                .Select(a => a.name)
-                .ToList();
-
-            var editorRefs = _discoveredAsmdefs
-                .Where(a => a.assignToEditor)
-                .Select(a => a.name)
-                .ToList();
-
             string runtimeAsmName = $"{asmBase}.Runtime";
-            string editorAsmName = $"{asmBase}.Editor";
+            string editorAsmName  = $"{asmBase}.Editor";
 
+            var runtimeRefs = _discoveredAsmdefs
+                .Where(a => a.assignToRuntime).Select(a => a.name).ToList();
+            var editorRefs = _discoveredAsmdefs
+                .Where(a => a.assignToEditor).Select(a => a.name).ToList();
+
+            // Editor assembly always references the runtime assembly
             var editorAllRefs = new List<string> { runtimeAsmName };
             editorAllRefs.AddRange(editorRefs);
 
             WriteAsmdef(runtimeDir, runtimeAsmName, isEditor: false, references: runtimeRefs);
-            WriteAsmdef(editorDir, editorAsmName, isEditor: true, references: editorAllRefs);
+            WriteAsmdef(editorDir,  editorAsmName,  isEditor: true,  references: editorAllRefs);
         }
 
+        // ─── Write .meta ──────────────────────────────────────────────────────
+
         /// <summary>
-        /// Write a .meta file. Skips writing if the file already exists and its
-        /// content is identical to what would be written, preventing spurious git diffs.
-        /// When <paramref name="overrideMeta"/> is false the file is also skipped if it
-        /// already exists (regardless of content), preserving any hand-edited metas.
+        /// Write a .meta file for <paramref name="targetPath"/>.
+        /// - When <paramref name="overrideMeta"/> is false and a .meta already exists, it is preserved entirely.
+        /// - Even when overriding, the file is only written if its content would actually change,
+        ///   preventing spurious git diffs and timestamp churn.
         /// </summary>
         private static void WriteMeta(string targetPath, bool isFolder, bool overrideMeta)
         {
-            string metaPath = targetPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + ".meta";
+            string metaPath = targetPath.TrimEnd(
+                Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + ".meta";
 
-            // If not overriding and meta already exists, preserve it entirely.
             if (!overrideMeta && File.Exists(metaPath))
                 return;
 
-            string guid = DeterministicGuid(targetPath);
+            string guid       = DeterministicGuid(targetPath);
             string newContent = BuildMetaContent(targetPath, isFolder, guid);
 
-            // Even when overriding, skip the write if the content is identical —
-            // this avoids touching the file's modification timestamp and keeps git clean.
-            if (File.Exists(metaPath))
-            {
-                string existingContent = File.ReadAllText(metaPath);
-                if (existingContent == newContent)
-                    return;
-            }
+            if (File.Exists(metaPath) && File.ReadAllText(metaPath) == newContent)
+                return;
 
             File.WriteAllText(metaPath, newContent);
         }
 
-        /// <summary>Build the text content for a .meta file without writing it.</summary>
         private static string BuildMetaContent(string targetPath, bool isFolder, string guid)
         {
             var sb = new StringBuilder();
@@ -663,12 +675,12 @@ namespace PackageCreator.Editor
                 sb.AppendLine("  userData: ");
                 sb.AppendLine("  assetBundleName: ");
                 sb.AppendLine("  assetBundleVariant: ");
+                return sb.ToString();
             }
-            else
+
+            switch (Path.GetExtension(targetPath).ToLowerInvariant())
             {
-                string ext = Path.GetExtension(targetPath).ToLowerInvariant();
-                if (ext == ".cs")
-                {
+                case ".cs":
                     sb.AppendLine("MonoImporter:");
                     sb.AppendLine("  externalObjects: {}");
                     sb.AppendLine("  serializedVersion: 2");
@@ -678,37 +690,38 @@ namespace PackageCreator.Editor
                     sb.AppendLine("  userData: ");
                     sb.AppendLine("  assetBundleName: ");
                     sb.AppendLine("  assetBundleVariant: ");
-                }
-                else if (ext == ".asmdef")
-                {
+                    break;
+
+                case ".asmdef":
                     sb.AppendLine("AssemblyDefinitionImporter:");
                     sb.AppendLine("  externalObjects: {}");
                     sb.AppendLine("  userData: ");
                     sb.AppendLine("  assetBundleName: ");
                     sb.AppendLine("  assetBundleVariant: ");
-                }
-                else if (ext == ".json")
-                {
+                    break;
+
+                case ".json":
                     sb.AppendLine("TextScriptImporter:");
                     sb.AppendLine("  externalObjects: {}");
                     sb.AppendLine("  userData: ");
                     sb.AppendLine("  assetBundleName: ");
                     sb.AppendLine("  assetBundleVariant: ");
-                }
-                else
-                {
+                    break;
+
+                default:
                     sb.AppendLine("DefaultImporter:");
                     sb.AppendLine("  externalObjects: {}");
                     sb.AppendLine("  userData: ");
                     sb.AppendLine("  assetBundleName: ");
                     sb.AppendLine("  assetBundleVariant: ");
-                }
+                    break;
             }
 
             return sb.ToString();
         }
 
-        /// <summary>Write a .asmdef and its .meta with the given references.</summary>
+        // ─── Write .asmdef ────────────────────────────────────────────────────
+
         private void WriteAsmdef(string dir, string asmName, bool isEditor, List<string> references)
         {
             string path = Path.Combine(dir, asmName + ".asmdef");
@@ -721,10 +734,7 @@ namespace PackageCreator.Editor
             {
                 sb.AppendLine("    \"references\": [");
                 for (int i = 0; i < references.Count; i++)
-                {
-                    string comma = i < references.Count - 1 ? "," : "";
-                    sb.AppendLine($"        \"{Escape(references[i])}\"{comma}");
-                }
+                    sb.AppendLine($"        \"{Escape(references[i])}\"{(i < references.Count - 1 ? "," : "")}");
                 sb.AppendLine("    ],");
             }
             else
@@ -732,17 +742,10 @@ namespace PackageCreator.Editor
                 sb.AppendLine("    \"references\": [],");
             }
 
-            if (isEditor)
-            {
-                sb.AppendLine("    \"includePlatforms\": [\"Editor\"],");
-                sb.AppendLine("    \"excludePlatforms\": [],");
-            }
-            else
-            {
-                sb.AppendLine("    \"includePlatforms\": [],");
-                sb.AppendLine("    \"excludePlatforms\": [],");
-            }
-
+            sb.AppendLine(isEditor
+                ? "    \"includePlatforms\": [\"Editor\"],"
+                : "    \"includePlatforms\": [],");
+            sb.AppendLine("    \"excludePlatforms\": [],");
             sb.AppendLine("    \"allowUnsafeCode\": false,");
             sb.AppendLine("    \"overrideReferences\": false,");
             sb.AppendLine("    \"precompiledReferences\": [],");
@@ -756,27 +759,24 @@ namespace PackageCreator.Editor
             WriteMeta(path, isFolder: false, overrideMeta: true);
         }
 
-        /// <summary>Write the package.json manifest.</summary>
+        // ─── Write package.json ───────────────────────────────────────────────
+
         private void WritePackageJson(string pkgRoot)
         {
             string path = Path.Combine(pkgRoot, "package.json");
 
             var kwList = _keywords
                 .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(k => k.Trim())
-                .Where(k => k.Length > 0)
-                .ToList();
+                .Select(k => k.Trim()).Where(k => k.Length > 0).ToList();
 
             var depPairs = _dependencies
                 .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(l => l.Trim())
-                .Where(l => l.Contains(':'))
+                .Select(l => l.Trim()).Where(l => l.Contains(':'))
                 .Select(l =>
                 {
                     int idx = l.IndexOf(':');
                     return (key: l.Substring(0, idx).Trim(), val: l.Substring(idx + 1).Trim());
-                })
-                .ToList();
+                }).ToList();
 
             var sb = new StringBuilder();
             sb.AppendLine("{");
@@ -793,7 +793,6 @@ namespace PackageCreator.Editor
                 sb.AppendLine($"    \"changelogUrl\": \"{Escape(_changelogUrl)}\",");
             if (!string.IsNullOrWhiteSpace(_licensesUrl))
                 sb.AppendLine($"    \"licensesUrl\": \"{Escape(_licensesUrl)}\",");
-
             if (!string.IsNullOrWhiteSpace(_license))
                 sb.AppendLine($"    \"license\": \"{Escape(_license)}\",");
 
@@ -801,10 +800,7 @@ namespace PackageCreator.Editor
             {
                 sb.AppendLine("    \"keywords\": [");
                 for (int i = 0; i < kwList.Count; i++)
-                {
-                    string comma = i < kwList.Count - 1 ? "," : "";
-                    sb.AppendLine($"        \"{Escape(kwList[i])}\"{comma}");
-                }
+                    sb.AppendLine($"        \"{Escape(kwList[i])}\"{(i < kwList.Count - 1 ? "," : "")}");
                 sb.AppendLine("    ],");
             }
             else
@@ -812,11 +808,11 @@ namespace PackageCreator.Editor
                 sb.AppendLine("    \"keywords\": [],");
             }
 
-            bool hasAuthor = !string.IsNullOrWhiteSpace(_authorName);
-            if (hasAuthor)
+            if (!string.IsNullOrWhiteSpace(_authorName))
             {
                 sb.AppendLine("    \"author\": {");
                 sb.AppendLine($"        \"name\": \"{Escape(_authorName)}\"");
+
                 if (!string.IsNullOrWhiteSpace(_authorEmail))
                 {
                     sb.Remove(sb.Length - Environment.NewLine.Length, Environment.NewLine.Length);
@@ -836,10 +832,7 @@ namespace PackageCreator.Editor
             {
                 sb.AppendLine("    \"dependencies\": {");
                 for (int i = 0; i < depPairs.Count; i++)
-                {
-                    string comma = i < depPairs.Count - 1 ? "," : "";
-                    sb.AppendLine($"        \"{Escape(depPairs[i].key)}\": \"{Escape(depPairs[i].val)}\"{comma}");
-                }
+                    sb.AppendLine($"        \"{Escape(depPairs[i].key)}\": \"{Escape(depPairs[i].val)}\"{(i < depPairs.Count - 1 ? "," : "")}");
                 sb.AppendLine("    }");
             }
             else
@@ -848,16 +841,16 @@ namespace PackageCreator.Editor
             }
 
             sb.AppendLine("}");
-
             File.WriteAllText(path, sb.ToString());
         }
 
-        // ─── Cache Load / Save ──────────────────────────────────────────
+        // ─── Cache ────────────────────────────────────────────────────────────
 
         private static string GetEditorDefaultSettingsPath()
         {
-            string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
-            return Path.Combine(projectRoot, "ProjectSettings");
+            return Path.Combine(
+                Path.GetFullPath(Path.Combine(Application.dataPath, "..")),
+                "ProjectSettings");
         }
 
         private void SaveCachedSettings()
@@ -866,39 +859,37 @@ namespace PackageCreator.Editor
             {
                 var settings = new CachedSettings
                 {
-                    packageName = _packageName,
-                    displayName = _displayName,
-                    version = _version,
-                    description = _description,
-                    unityVersion = _unityVersion,
-                    unityRelease = _unityRelease,
-                    authorName = _authorName,
-                    authorEmail = _authorEmail,
-                    authorUrl = _authorUrl,
-                    license = _license,
+                    packageName      = _packageName,
+                    displayName      = _displayName,
+                    version          = _version,
+                    description      = _description,
+                    unityVersion     = _unityVersion,
+                    unityRelease     = _unityRelease,
+                    authorName       = _authorName,
+                    authorEmail      = _authorEmail,
+                    authorUrl        = _authorUrl,
+                    license          = _license,
                     documentationUrl = _documentationUrl,
-                    changelogUrl = _changelogUrl,
-                    licensesUrl = _licensesUrl,
-                    keywords = _keywords,
-                    dependencies = _dependencies,
-                    sourceFolder = _sourceFolder,
-                    outputFolder = _outputFolder,
-                    createSubfolder = _createSubfolder,
-                    asmdefEntries = _discoveredAsmdefs.Select(a => new CachedAsmdefEntry
+                    changelogUrl     = _changelogUrl,
+                    licensesUrl      = _licensesUrl,
+                    keywords         = _keywords,
+                    dependencies     = _dependencies,
+                    sourceFolder     = _sourceFolder,
+                    outputFolder     = _outputFolder,
+                    createSubfolder  = _createSubfolder,
+                    asmdefEntries    = _discoveredAsmdefs.Select(a => new CachedAsmdefEntry
                     {
-                        name = a.name,
-                        relativePath = a.relativePath,
+                        name            = a.name,
+                        relativePath    = a.relativePath,
                         assignToRuntime = a.assignToRuntime,
-                        assignToEditor = a.assignToEditor,
+                        assignToEditor  = a.assignToEditor,
                     }).ToList(),
                 };
 
                 if (!Directory.Exists(CacheFolderPath))
                     Directory.CreateDirectory(CacheFolderPath);
 
-                string json = JsonUtility.ToJson(settings, true);
-                File.WriteAllText(CacheFilePath, json);
-
+                File.WriteAllText(CacheFilePath, JsonUtility.ToJson(settings, true));
                 Debug.Log($"[PackageCreator] Settings cached to {CacheFilePath}");
             }
             catch (Exception ex)
@@ -912,39 +903,37 @@ namespace PackageCreator.Editor
             if (!File.Exists(CacheFilePath))
             {
                 EditorUtility.DisplayDialog("No Cache Found",
-                    $"No cached settings found.\nExpected at: {CacheFilePath}\n\nSettings are cached automatically after the first package is generated.",
-                    "OK");
+                    $"No cached settings found.\nExpected at: {CacheFilePath}\n\n" +
+                    "Settings are cached automatically after the first package is generated.", "OK");
                 return;
             }
 
             try
             {
-                string json = File.ReadAllText(CacheFilePath);
-                var settings = JsonUtility.FromJson<CachedSettings>(json);
+                var settings = JsonUtility.FromJson<CachedSettings>(File.ReadAllText(CacheFilePath));
 
-                _packageName = settings.packageName ?? _packageName;
-                _displayName = settings.displayName ?? _displayName;
-                _version = settings.version ?? _version;
-                _description = settings.description ?? _description;
-                _unityVersion = settings.unityVersion ?? _unityVersion;
-                _unityRelease = settings.unityRelease ?? _unityRelease;
-                _authorName = settings.authorName ?? "";
-                _authorEmail = settings.authorEmail ?? "";
-                _authorUrl = settings.authorUrl ?? "";
-                _license = settings.license ?? "";
+                _packageName      = settings.packageName      ?? _packageName;
+                _displayName      = settings.displayName      ?? _displayName;
+                _version          = settings.version          ?? _version;
+                _description      = settings.description      ?? _description;
+                _unityVersion     = settings.unityVersion     ?? _unityVersion;
+                _unityRelease     = settings.unityRelease     ?? _unityRelease;
+                _authorName       = settings.authorName       ?? "";
+                _authorEmail      = settings.authorEmail      ?? "";
+                _authorUrl        = settings.authorUrl        ?? "";
+                _license          = settings.license          ?? "";
                 _documentationUrl = settings.documentationUrl ?? "";
-                _changelogUrl = settings.changelogUrl ?? "";
-                _licensesUrl = settings.licensesUrl ?? "";
-                _keywords = settings.keywords ?? "";
-                _dependencies = settings.dependencies ?? "";
-                _sourceFolder = settings.sourceFolder ?? _sourceFolder;
-                _outputFolder = settings.outputFolder ?? _outputFolder;
-                _createSubfolder = settings.createSubfolder;
+                _changelogUrl     = settings.changelogUrl     ?? "";
+                _licensesUrl      = settings.licensesUrl      ?? "";
+                _keywords         = settings.keywords         ?? "";
+                _dependencies     = settings.dependencies     ?? "";
+                _sourceFolder     = settings.sourceFolder     ?? _sourceFolder;
+                _outputFolder     = settings.outputFolder     ?? _outputFolder;
+                _createSubfolder  = settings.createSubfolder;
 
-                if (!string.IsNullOrEmpty(_sourceFolder) && _sourceFolder.StartsWith("Assets"))
-                    _sourceFolderAsset = AssetDatabase.LoadAssetAtPath<DefaultAsset>(_sourceFolder);
-                else
-                    _sourceFolderAsset = null;
+                _sourceFolderAsset = (!string.IsNullOrEmpty(_sourceFolder) && _sourceFolder.StartsWith("Assets"))
+                    ? AssetDatabase.LoadAssetAtPath<DefaultAsset>(_sourceFolder)
+                    : null;
 
                 _lastScannedSourceFolder = "";
                 RefreshAsmdefList();
@@ -957,7 +946,7 @@ namespace PackageCreator.Editor
                         if (cachedByName.TryGetValue(entry.name, out var cached))
                         {
                             entry.assignToRuntime = cached.assignToRuntime;
-                            entry.assignToEditor = cached.assignToEditor;
+                            entry.assignToEditor  = cached.assignToEditor;
                         }
                     }
                 }
@@ -972,47 +961,53 @@ namespace PackageCreator.Editor
             }
         }
 
-        // ─── Utilities ──────────────────────────────────────────────────
+        // ─── Utilities ────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Returns true if <paramref name="path"/> is inside a .git folder relative to <paramref name="root"/>.
+        /// </summary>
+        private static bool IsUnderGitFolder(string path, string root)
+        {
+            string rel = GetRelativePath(root, path);
+            return rel
+                .Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
+                       StringSplitOptions.RemoveEmptyEntries)
+                .Any(p => p.Equals(".git", StringComparison.OrdinalIgnoreCase));
+        }
 
         private static bool IsEditorPath(string relativePath)
         {
-            string[] parts = relativePath.Split(
-                new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
-                StringSplitOptions.RemoveEmptyEntries);
-
-            return parts.Any(p => p.Equals("Editor", StringComparison.OrdinalIgnoreCase));
+            return relativePath
+                .Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
+                       StringSplitOptions.RemoveEmptyEntries)
+                .Any(p => p.Equals("Editor", StringComparison.OrdinalIgnoreCase));
         }
 
         private static bool IsSourceUnderEditorAncestor(string sourceFolder)
         {
-            string assetsDir = Path.GetFullPath(Application.dataPath);
-
+            string assetsDir  = Path.GetFullPath(Application.dataPath);
             string fullSource = Path.GetFullPath(sourceFolder)
                 .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
             string current = Directory.GetParent(fullSource)?.FullName;
             while (!string.IsNullOrEmpty(current) && current.Length >= assetsDir.Length)
             {
-                string dirName = Path.GetFileName(current);
-                if (dirName.Equals("Editor", StringComparison.OrdinalIgnoreCase))
+                if (Path.GetFileName(current).Equals("Editor", StringComparison.OrdinalIgnoreCase))
                     return true;
-
                 current = Directory.GetParent(current)?.FullName;
             }
-
             return false;
         }
 
         private static string StripEditorSegment(string relativePath)
         {
-            var parts = relativePath.Split(
-                    new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
-                    StringSplitOptions.RemoveEmptyEntries)
+            var parts = relativePath
+                .Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
+                       StringSplitOptions.RemoveEmptyEntries)
                 .ToList();
 
             int idx = parts.FindIndex(p => p.Equals("Editor", StringComparison.OrdinalIgnoreCase));
             if (idx >= 0) parts.RemoveAt(idx);
-
             return Path.Combine(parts.ToArray());
         }
 
@@ -1024,9 +1019,7 @@ namespace PackageCreator.Editor
             if (full.StartsWith(root, StringComparison.OrdinalIgnoreCase))
                 return full.Substring(root.Length);
 
-            Uri rootUri = new Uri(root);
-            Uri fullUri = new Uri(full);
-            return Uri.UnescapeDataString(rootUri.MakeRelativeUri(fullUri).ToString())
+            return Uri.UnescapeDataString(new Uri(root).MakeRelativeUri(new Uri(full)).ToString())
                       .Replace('/', Path.DirectorySeparatorChar);
         }
 
@@ -1041,19 +1034,18 @@ namespace PackageCreator.Editor
             }
         }
 
-        private static string Escape(string s)
-        {
-            return s.Replace("\\", "\\\\").Replace("\"", "\\\"");
-        }
+        private static string Escape(string s) =>
+            s.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
-        /// <summary>Extract a top-level string field from JSON without a full parser.</summary>
+        // ─── Minimal JSON Helpers ─────────────────────────────────────────────
+
         private static string ExtractJsonStringField(string json, string fieldName)
         {
             string pattern = $"\"{fieldName}\"";
             int keyIdx = json.IndexOf(pattern, StringComparison.Ordinal);
             if (keyIdx < 0) return null;
 
-            int colonIdx = json.IndexOf(':', keyIdx + pattern.Length);
+            int colonIdx  = json.IndexOf(':', keyIdx + pattern.Length);
             if (colonIdx < 0) return null;
 
             int openQuote = json.IndexOf('"', colonIdx + 1);
@@ -1065,98 +1057,84 @@ namespace PackageCreator.Editor
             return json.Substring(openQuote + 1, closeQuote - openQuote - 1);
         }
 
-        /// <summary>Extract a string field nested inside an object field (e.g. author.name).</summary>
         private static string ExtractNestedJsonStringField(string json, string objectField, string nestedField)
         {
             string objectPattern = $"\"{objectField}\"";
             int objIdx = json.IndexOf(objectPattern, StringComparison.Ordinal);
             if (objIdx < 0) return null;
 
-            int braceOpen = json.IndexOf('{', objIdx + objectPattern.Length);
+            int braceOpen  = json.IndexOf('{', objIdx + objectPattern.Length);
             if (braceOpen < 0) return null;
 
             int braceClose = FindMatchingBrace(json, braceOpen);
             if (braceClose < 0) return null;
 
-            string objectContent = json.Substring(braceOpen, braceClose - braceOpen + 1);
-            return ExtractJsonStringField(objectContent, nestedField);
+            return ExtractJsonStringField(
+                json.Substring(braceOpen, braceClose - braceOpen + 1), nestedField);
         }
 
-        /// <summary>Extract a JSON array of strings as a CSV string.</summary>
         private static string ExtractJsonArrayAsCSV(string json, string fieldName)
         {
             string pattern = $"\"{fieldName}\"";
             int keyIdx = json.IndexOf(pattern, StringComparison.Ordinal);
             if (keyIdx < 0) return null;
 
-            int bracketOpen = json.IndexOf('[', keyIdx + pattern.Length);
+            int bracketOpen  = json.IndexOf('[', keyIdx + pattern.Length);
             if (bracketOpen < 0) return null;
 
             int bracketClose = json.IndexOf(']', bracketOpen);
             if (bracketClose < 0) return null;
 
-            string arrayContent = json.Substring(bracketOpen + 1, bracketClose - bracketOpen - 1);
-
+            string content = json.Substring(bracketOpen + 1, bracketClose - bracketOpen - 1);
             var items = new List<string>();
             int pos = 0;
-            while (pos < arrayContent.Length)
+            while (pos < content.Length)
             {
-                int qOpen = arrayContent.IndexOf('"', pos);
-                if (qOpen < 0) break;
-                int qClose = arrayContent.IndexOf('"', qOpen + 1);
-                if (qClose < 0) break;
-                items.Add(arrayContent.Substring(qOpen + 1, qClose - qOpen - 1));
+                int qOpen  = content.IndexOf('"', pos);     if (qOpen  < 0) break;
+                int qClose = content.IndexOf('"', qOpen + 1); if (qClose < 0) break;
+                items.Add(content.Substring(qOpen + 1, qClose - qOpen - 1));
                 pos = qClose + 1;
             }
-
             return string.Join(", ", items);
         }
 
-        /// <summary>Extract a JSON object of string:string pairs as newline-separated key:value lines.</summary>
         private static string ExtractJsonObjectAsLines(string json, string fieldName)
         {
             string pattern = $"\"{fieldName}\"";
             int keyIdx = json.IndexOf(pattern, StringComparison.Ordinal);
             if (keyIdx < 0) return null;
 
-            int braceOpen = json.IndexOf('{', keyIdx + pattern.Length);
+            int braceOpen  = json.IndexOf('{', keyIdx + pattern.Length);
             if (braceOpen < 0) return null;
 
             int braceClose = FindMatchingBrace(json, braceOpen);
             if (braceClose < 0) return null;
 
-            string objContent = json.Substring(braceOpen + 1, braceClose - braceOpen - 1);
-
+            string content = json.Substring(braceOpen + 1, braceClose - braceOpen - 1);
             var lines = new List<string>();
             int pos = 0;
-            while (pos < objContent.Length)
+            while (pos < content.Length)
             {
-                int kOpen = objContent.IndexOf('"', pos);
-                if (kOpen < 0) break;
-                int kClose = objContent.IndexOf('"', kOpen + 1);
-                if (kClose < 0) break;
-                string key = objContent.Substring(kOpen + 1, kClose - kOpen - 1);
+                int kOpen  = content.IndexOf('"', pos);      if (kOpen  < 0) break;
+                int kClose = content.IndexOf('"', kOpen + 1); if (kClose < 0) break;
+                string key = content.Substring(kOpen + 1, kClose - kOpen - 1);
 
-                int vOpen = objContent.IndexOf('"', kClose + 1);
-                if (vOpen < 0) break;
-                int vClose = objContent.IndexOf('"', vOpen + 1);
-                if (vClose < 0) break;
-                string val = objContent.Substring(vOpen + 1, vClose - vOpen - 1);
+                int vOpen  = content.IndexOf('"', kClose + 1); if (vOpen  < 0) break;
+                int vClose = content.IndexOf('"', vOpen + 1);  if (vClose < 0) break;
+                string val = content.Substring(vOpen + 1, vClose - vOpen - 1);
 
                 lines.Add($"{key}:{val}");
                 pos = vClose + 1;
             }
-
             return string.Join("\n", lines);
         }
 
-        /// <summary>Find the matching closing brace for an opening brace.</summary>
         private static int FindMatchingBrace(string json, int openIndex)
         {
             int depth = 0;
             for (int i = openIndex; i < json.Length; i++)
             {
-                if (json[i] == '{') depth++;
+                if      (json[i] == '{') depth++;
                 else if (json[i] == '}') depth--;
                 if (depth == 0) return i;
             }

@@ -1,6 +1,6 @@
 {
     "name": "com.tyradman.upm-package-generator",
-    "version": "0.9.2",
+    "version": "0.9.3",
     "displayName": "UPM Package Generator",
     "description": "A simple tool to generate a Unity Package Manager (UPM) package within a Unity project using files in that Unity project.",
     "unity": "2021.3",
