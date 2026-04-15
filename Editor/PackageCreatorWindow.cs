@@ -38,6 +38,9 @@ namespace PackageCreator.Editor
         private string _outputFolder = "";
         private DefaultAsset _sourceFolderAsset;
 
+        // ─── Import Settings ────────────────────────────────────────────
+        private bool _createSubfolder = true;
+
         // ─── Update Mode Options ────────────────────────────────────────
         private bool _overrideMetaFiles = false;
 
@@ -89,6 +92,7 @@ namespace PackageCreator.Editor
             public string dependencies;
             public string sourceFolder;
             public string outputFolder;
+            public bool createSubfolder;
             public List<CachedAsmdefEntry> asmdefEntries;
         }
 
@@ -153,7 +157,7 @@ namespace PackageCreator.Editor
 
             // ─── Output Folder ──────────────────────────────────────
             string outputLabel = _mode == PackageMode.CreateNew
-                ? "Output Folder (package subfolder will be created)"
+                ? "Output Folder"
                 : "Existing Package Folder (contains package.json)";
             EditorGUILayout.LabelField(outputLabel, EditorStyles.miniBoldLabel);
             EditorGUILayout.BeginHorizontal();
@@ -171,6 +175,18 @@ namespace PackageCreator.Editor
                 }
             }
             EditorGUILayout.EndHorizontal();
+
+            // ─── Import Settings ────────────────────────────────────
+            EditorGUILayout.Space(4);
+            EditorGUILayout.LabelField("Import Settings", EditorStyles.miniBoldLabel);
+
+            _createSubfolder = EditorGUILayout.Toggle("Create Package Subfolder", _createSubfolder);
+
+            // Preview the resolved package root
+            string previewRoot = ResolvePackageRoot();
+            EditorGUI.BeginDisabledGroup(true);
+            EditorGUILayout.TextField("Package Root", string.IsNullOrWhiteSpace(previewRoot) ? "—" : previewRoot);
+            EditorGUI.EndDisabledGroup();
 
             // ─── Load from package.json button (Update mode) ────────
             if (_mode == PackageMode.UpdateExisting)
@@ -252,6 +268,18 @@ namespace PackageCreator.Editor
                 EditorGUILayout.HelpBox(GetValidationMessage(), MessageType.Warning);
 
             EditorGUILayout.EndScrollView();
+        }
+
+        // ─── Resolve package root based on subfolder toggle ─────────────
+
+        private string ResolvePackageRoot()
+        {
+            if (string.IsNullOrWhiteSpace(_outputFolder))
+                return "";
+
+            return _createSubfolder
+                ? Path.Combine(_outputFolder, _packageName)
+                : _outputFolder;
         }
 
         // ─── Load package.json into fields ──────────────────────────────
@@ -407,6 +435,7 @@ namespace PackageCreator.Editor
 
             if (_mode == PackageMode.UpdateExisting)
             {
+                // In update mode the user points directly at the package root regardless of subfolder toggle
                 string pkgJson = Path.Combine(_outputFolder, "package.json");
                 if (!File.Exists(pkgJson)) return false;
             }
@@ -445,9 +474,9 @@ namespace PackageCreator.Editor
             try
             {
                 string srcRoot = GetAbsoluteSourcePath();
-                string pkgRoot = Path.Combine(_outputFolder, _packageName);
+                string pkgRoot = ResolvePackageRoot();
 
-                if (Directory.Exists(pkgRoot))
+                if (_createSubfolder && Directory.Exists(pkgRoot))
                 {
                     if (!EditorUtility.DisplayDialog("Overwrite?",
                         $"'{pkgRoot}' already exists. Delete and recreate?", "Yes", "Cancel"))
@@ -495,7 +524,8 @@ namespace PackageCreator.Editor
             try
             {
                 string srcRoot = GetAbsoluteSourcePath();
-                string pkgRoot = _outputFolder; // directly into the existing package folder
+                // Update mode always uses _outputFolder directly (user points at the package root)
+                string pkgRoot = _outputFolder;
 
                 string runtimeDir = Path.Combine(pkgRoot, "Runtime");
                 string editorDir = Path.Combine(pkgRoot, "Editor");
@@ -589,20 +619,38 @@ namespace PackageCreator.Editor
             WriteAsmdef(editorDir, editorAsmName, isEditor: true, references: editorAllRefs);
         }
 
-        /// <summary>Write a minimal .meta file (GUID derived from path for determinism).</summary>
+        /// <summary>
+        /// Write a .meta file. Skips writing if the file already exists and its
+        /// content is identical to what would be written, preventing spurious git diffs.
+        /// When <paramref name="overrideMeta"/> is false the file is also skipped if it
+        /// already exists (regardless of content), preserving any hand-edited metas.
+        /// </summary>
         private static void WriteMeta(string targetPath, bool isFolder, bool overrideMeta)
         {
             string metaPath = targetPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + ".meta";
 
-            // If not overriding and meta already exists, skip
+            // If not overriding and meta already exists, preserve it entirely.
             if (!overrideMeta && File.Exists(metaPath))
                 return;
 
-            // If overriding is off but file is new (no existing meta), still create it
-            // (handled by the check above — if we reach here, either override is on or meta doesn't exist)
-
             string guid = DeterministicGuid(targetPath);
+            string newContent = BuildMetaContent(targetPath, isFolder, guid);
 
+            // Even when overriding, skip the write if the content is identical —
+            // this avoids touching the file's modification timestamp and keeps git clean.
+            if (File.Exists(metaPath))
+            {
+                string existingContent = File.ReadAllText(metaPath);
+                if (existingContent == newContent)
+                    return;
+            }
+
+            File.WriteAllText(metaPath, newContent);
+        }
+
+        /// <summary>Build the text content for a .meta file without writing it.</summary>
+        private static string BuildMetaContent(string targetPath, bool isFolder, string guid)
+        {
             var sb = new StringBuilder();
             sb.AppendLine("fileFormatVersion: 2");
             sb.AppendLine($"guid: {guid}");
@@ -657,7 +705,7 @@ namespace PackageCreator.Editor
                 }
             }
 
-            File.WriteAllText(metaPath, sb.ToString());
+            return sb.ToString();
         }
 
         /// <summary>Write a .asmdef and its .meta with the given references.</summary>
@@ -835,6 +883,7 @@ namespace PackageCreator.Editor
                     dependencies = _dependencies,
                     sourceFolder = _sourceFolder,
                     outputFolder = _outputFolder,
+                    createSubfolder = _createSubfolder,
                     asmdefEntries = _discoveredAsmdefs.Select(a => new CachedAsmdefEntry
                     {
                         name = a.name,
@@ -890,6 +939,7 @@ namespace PackageCreator.Editor
                 _dependencies = settings.dependencies ?? "";
                 _sourceFolder = settings.sourceFolder ?? _sourceFolder;
                 _outputFolder = settings.outputFolder ?? _outputFolder;
+                _createSubfolder = settings.createSubfolder;
 
                 if (!string.IsNullOrEmpty(_sourceFolder) && _sourceFolder.StartsWith("Assets"))
                     _sourceFolderAsset = AssetDatabase.LoadAssetAtPath<DefaultAsset>(_sourceFolder);
